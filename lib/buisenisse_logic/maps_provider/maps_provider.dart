@@ -1,14 +1,15 @@
 import 'dart:convert';
 
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_geofire/flutter_geofire.dart';
 import 'package:flutter_polyline_points/flutter_polyline_points.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:page_transition/page_transition.dart';
 import 'package:provider/provider.dart';
 import 'package:users/buisenisse_logic/assistant_provider/assistant_provider.dart';
+import 'package:users/buisenisse_logic/chatProvider/chat_provider.dart';
 import 'package:users/data/active_drivers_model/active_drivers_model.dart';
 import 'package:users/data/client_model/client.dart';
 import 'package:users/data/direction_detail_model/direction_detail_model.dart';
@@ -16,7 +17,10 @@ import 'package:users/data/places_predictions_model/placses_predictions_model.da
 import 'package:users/presentation/app_manager/api_key/aoi_key.dart';
 import 'package:http/http.dart' as http;
 import 'package:users/presentation/app_manager/color_manager/color_manager.dart';
+import 'package:users/presentation/screens/ChatScreen/chat-screen.dart';
 import 'package:users/presentation/screens/nearset_drivers_screen/nearset_drivers_screen.dart';
+import 'package:users/presentation/widgets/my_buttomn/my_buttomn.dart';
+import 'package:users/presentation/widgets/my_text_style/my_text_style.dart';
 import 'package:users/presentation/widgets/my_toast/my_toast.dart';
 
 import '../../data/direction_model/direction_model.dart';
@@ -38,6 +42,8 @@ class MapsProvider with ChangeNotifier {
   Set<Circle> circleSet = {};
   bool activeDriverLoadKey = false;
   BitmapDescriptor? activeDriverIcon;
+
+  TextEditingController newMessage = TextEditingController();
 // this variable to save our request ride to data base
   DatabaseReference? databaseReference;
 
@@ -258,7 +264,10 @@ class MapsProvider with ChangeNotifier {
 
         Marker distinationMarker = Marker(
           markerId: const MarkerId("DistinationID"),
-          infoWindow: InfoWindow(title: direction.name, snippet: "destination"),
+          infoWindow: InfoWindow(
+            title: direction.name,
+            snippet: "destination",
+          ),
           position: destinattionPosition,
           icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
         );
@@ -292,7 +301,7 @@ class MapsProvider with ChangeNotifier {
     }
   }
 
-  void alocateDrivers(Position userCurrentPosition) {
+  void alocateDrivers(Position userCurrentPosition, BuildContext context) {
     Geofire.initialize("activeDrivers");
     Geofire.queryAtLocation(
             userCurrentPosition.latitude, userCurrentPosition.longitude, 10)!
@@ -315,7 +324,7 @@ class MapsProvider with ChangeNotifier {
             print(activeDriversList.length);
             notifyListeners();
             if (activeDriverLoadKey) {
-              displayActiveDriversOnMap();
+              displayActiveDriversOnMap(context);
             }
 
             notifyListeners();
@@ -336,14 +345,14 @@ class MapsProvider with ChangeNotifier {
             activeDrivers.driver_lng = map['longitude'];
 
             updateActiveDriver(activeDrivers);
-            displayActiveDriversOnMap();
+            displayActiveDriversOnMap(context);
 
             break;
 
           case Geofire.onGeoQueryReady:
             // All Intial Data is loaded
             print(map['result']);
-            displayActiveDriversOnMap();
+            displayActiveDriversOnMap(context);
 
             break;
         }
@@ -374,11 +383,11 @@ class MapsProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  void displayActiveDriversOnMap() {
+  void displayActiveDriversOnMap(BuildContext context) {
     markerSet.clear();
     circleSet.clear();
 
-    Set<Marker> activeDriverMarckerSet = Set<Marker>();
+    Set<Marker> activeDriverMarckerSet = <Marker>{};
     notifyListeners();
 
     for (ActiveDrivers activeDrivers in activeDriversList) {
@@ -386,6 +395,21 @@ class MapsProvider with ChangeNotifier {
           LatLng(activeDrivers.driver_lat!, activeDrivers.driver_lng!);
 
       Marker marker = Marker(
+          infoWindow: InfoWindow(
+              title: 'click here to send message',
+              onTap: () {
+                Provider.of<ChatProvider>(context, listen: false)
+                    .startChatRoom();
+
+                sendmessage(
+                    activeDrivers.driverID!,
+                    Provider.of<AssistantsService>(context, listen: false)
+                        .client!
+                        .name,
+                    context);
+
+                messageDialog(context, activeDrivers.driverID!);
+              }),
           markerId: MarkerId(activeDrivers.driverID!),
           rotation: 360,
           icon: activeDriverIcon == null
@@ -541,12 +565,10 @@ class MapsProvider with ChangeNotifier {
         .then(
       (snap) {
         if (snap.snapshot.value != null) {
-          String? driverToken =
-              (snap.snapshot.value! as Map)["driversToken"];
+          String? driverToken = (snap.snapshot.value! as Map)["driversToken"];
 
-             
           notifyListeners();
-          sendNotification(driverToken);
+          //  sendNotification(driverToken);
         } else {
           showtoast("this user dosn't exist,try again please");
         }
@@ -557,38 +579,115 @@ class MapsProvider with ChangeNotifier {
 
   // send notification requst to the chosen driver
 
-  sendNotification(var drviverToken) {
+  sendNotification(
+      var drviverToken, String driverID, String username, String roomID) {
+    print("this is my $driverID");
+
+    try {
+      String baseUrl = "https://fcm.googleapis.com/fcm/send";
+
+      http.post(Uri.parse(baseUrl),
+          headers: {
+            'Content-Type': 'application/json; charset=UTF-8',
+            'Authorization':
+                'key=AAAAO-tNJI4:APA91bFYQyrsD6MLtCwK5Mzom1QyQ4X27RPeVVzTlVVL8ChJiUeXcMfuu1CiquZJD91UVfbbILG9N8Pxs0rEOSGHgIGVplwJ8d8GQJhCoIYEf4WVr4H9QlpdMsrUExQz7gyRbaSG4U09'
+          },
+          body: json.encode({
+            "to": drviverToken,
+            "data": {
+              "click_action": "FLUTTER_NOTIFICATION_Click",
+              "id": "1",
+              "status": "done",
+              "rideRequestID": "-NwPqpVHHhZXiOB0n1bN",
+              "newmessage": username,
+              "roomID": roomID
+            },
+            "notification": {
+              "body": "$username Wants to talk with you",
+              "title": "Start Conversation"
+            }
+          }));
+    } catch (error) {
+      print("hello  $error");
+    }
+  }
+
+  messageDialog(BuildContext context, String driverID) {
+    return showDialog(
+        context: context,
+        builder: ((context) {
+          return Dialog(
+            insetAnimationCurve: Curves.bounceInOut,
+            insetAnimationDuration: const Duration(milliseconds: 300),
+            backgroundColor: white,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+            child: Container(
+              height: 150,
+              alignment: Alignment.center,
+              child: Column(children: [
+                Row(
+                  children: [
+                    Container(
+                      margin:
+                          const EdgeInsets.only(top: 20, left: 80, right: 50),
+                      child: MyDefaultTextStyle(
+                          text: 'Start new Chat Room',
+                          height: 17,
+                          color: black,
+                          bold: true),
+                    ),
+                  ],
+                ),
+                const SizedBox(
+                  height: 30,
+                ),
+                Defaultbutton(
+                    functon: () {
+                      Navigator.pushReplacement(
+                          context,
+                          PageTransition(
+                              type: PageTransitionType.leftToRight,
+                              child: const ChatScreen()));
+                    },
+                    color: maincolor,
+                    text: "Go to chat Screen",
+                    height: 50,
+                    width: 200)
+              ]),
+            ),
+          );
+        }));
+  }
+
+  void sendmessage(driverID, username, BuildContext context) {
+    print(driverID);
+    print("is clicked");
+    print(Provider.of<ChatProvider>(context, listen: false).messageRoom!.key);
     FirebaseDatabase.instance
         .ref()
         .child("drivers")
-        .child(specificDriverID.toString())
-        .child("newRideStatus")
-        .set(databaseReference!.key.toString());
+        .child(driverID.toString())
+        .once()
+        .then(
+      (snap) {
+        if (snap.snapshot.value != null) {
+          String? driverToken = (snap.snapshot.value! as Map)["driversToken"];
+          print(driverToken);
 
-    try {
-      print(databaseReference!.key.toString());
-      String baseUrl = "https://fcm.googleapis.com/fcm/send";
-
-      http.post(Uri.parse(baseUrl), 
-       headers: {
-            'Content-Type': 'application/json; charset=UTF-8',
-            'Authorization':'key=AAAAO-tNJI4:APA91bFYQyrsD6MLtCwK5Mzom1QyQ4X27RPeVVzTlVVL8ChJiUeXcMfuu1CiquZJD91UVfbbILG9N8Pxs0rEOSGHgIGVplwJ8d8GQJhCoIYEf4WVr4H9QlpdMsrUExQz7gyRbaSG4U09'
-          },
-      body:json.encode({
-        "to":drviverToken,
-        "data": {
-          "click_action": "FLUTTER_NOTIFICATION_Click",
-          "id": "1",
-          "status": "done",
-          "rideRequestID": databaseReference!.key.toString()
-        },
-        "notification": {
-          "body": "there is new request ride, Please check it",
-          "title": "aymen uber clone"
-        }}) 
-      );
-    } catch (error) {
-      print(error);
-    }
+          notifyListeners();
+          sendNotification(
+              driverToken,
+              driverID,
+              username,
+              Provider.of<ChatProvider>(context, listen: false)
+                      .messageRoom!
+                      .key ??
+                  "");
+        } else {
+          showtoast("this user dosn't exist,try again please");
+        }
+      },
+    );
   }
 }

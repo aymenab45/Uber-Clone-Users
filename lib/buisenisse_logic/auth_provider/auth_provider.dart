@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:users/data/client_model/client.dart';
 import 'package:users/presentation/widgets/my_toast/my_toast.dart';
 
+
 import '../../presentation/screens/main_screen/main_screen.dart';
 
 class AuthService with ChangeNotifier {
@@ -49,6 +50,7 @@ class AuthService with ChangeNotifier {
           "email": email,
           "phone": phone,
         };
+           
 
         DatabaseReference driversRef =
             FirebaseDatabase.instance.ref().child("users");

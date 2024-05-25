@@ -30,6 +30,7 @@ dependencies:
   flutter_polyline_points: 
   flutter_geofire: 
 
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -49,6 +50,7 @@ flutter:
     - assets/images/bike.png
     - assets/images/uber-go.png
     - assets/images/uber-x.png
+    - assets/images/userslocation.png
 
 
   # An image asset can refer to one or more resolution-specific "variants", see

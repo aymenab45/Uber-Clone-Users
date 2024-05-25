@@ -2,6 +2,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:users/buisenisse_logic/assistant_provider/assistant_provider.dart';
+import 'package:users/buisenisse_logic/chatProvider/chat_provider.dart';
 import 'package:users/buisenisse_logic/maps_provider/maps_provider.dart';
 import 'package:users/presentation/screens/splach_screen/splach_screen.dart';
 
@@ -18,6 +19,7 @@ void main() async {
         ChangeNotifierProvider<AuthService>(create: (_) => AuthService()),
         ChangeNotifierProvider<AssistantsService>(create: (_) => AssistantsService()),
         ChangeNotifierProvider<MapsProvider>(create: (_) => MapsProvider()),
+        ChangeNotifierProvider<ChatProvider>(create: (_) => ChatProvider()),
       ],
     
     child: const MyApp()));
